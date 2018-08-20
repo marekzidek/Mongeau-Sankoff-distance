@@ -1,3 +1,10 @@
+# This code is a mongeau-sankoff measure improved by adding polyphony and analyzing
+# multiple tracks for self-analysis.
+#TODO: after addition of retrograd and inverse intervals, add it to this annotation
+# The baseline of it is inspired by freakimkaefig/musicjson-toolbox on github, 
+# adding a minor mode to it and rewriting it to python with some tweaks
+
+
 import math
 import midi
 
@@ -63,15 +70,56 @@ def w_ins(note_b):
 def w_del(note_a):
 	return K1 * note_a.duration
 
+
 def w_sub(note_a, note_b):
-	return w_interval(note_a, note_b) + K1 * w_len(note_a, note_b)
-
-def w_frag(): 
-	pass
+	return w_interval(note_a, note_b) + K1 * w_len(note_a.duration, note_b.duration)
 
 
-def w_cons():
-	pass
+def w_frag(distance_matrix, a, b, i, j, F):
+	min_weight = math.inf
+	
+	for x in range(2, math.min(j, F)):
+		
+		k = x
+
+		weight = distance_matrix[i-1][j-k]
+		durations = 0
+		
+		while k > 0:
+			weight += w_interval(a[i-1], b[j-k])
+			durations += b[j-k].duration
+			k -= 1
+		
+		weight += K1 * w_len(a[i-1.duration, durations])
+
+		if min_weight > weight:
+			min_weight = weight
+
+	return min_weight
+
+
+def w_cons(distance_matrix, a, b, i, j, C):
+	min_weight = math.inf
+
+	for x in range(2, math.min(i, C)):
+
+		k = x
+
+		weight = distance_matrix[i-k][j-1]
+		durations = 0
+
+		while k > 0:
+			weight += w_interval(a[i-k], b[j-1])
+			durations += a[i-k].duration
+			k -= 1
+		
+		weight += K1 * w_len(durations, b[j-1].duration)
+
+	if min_weight > weight:
+			min_weight = weight
+
+	return min_weight
+
 
 
 def w_interval(note_a, note_b):
@@ -93,9 +141,9 @@ def w_interval(note_a, note_b):
 	return DEG_DIFF[math.abs(degree_a - degree_b)]
 	
 
-
+# Takes durations
 def w_len(note_a, note_b):
-	return math.abs(note_a.duration - note_b.duration)
+	return math.abs(note_a - note_b)
 
 
 
