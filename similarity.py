@@ -1,5 +1,5 @@
 import math
-
+import midi
 
 # Constants from original paper:
 K1 = 0.348
@@ -20,24 +20,24 @@ TON = {
 	11: 2.5
 }
 
-MINOR_DEG: {
-	1: 1,
-	3: 2,
-	4: 3,
-	6: 4,
-	8: 5,
-	9: 6,
-	12: 7
+MINOR_DEG = {
+	0: 1,
+	2: 2,
+	3: 3,
+	5: 4,
+	7: 5,
+	8: 6,
+	11: 7
 }
 
-MAJOR_DEG: {
-	1: 1,
-	3: 2,
-	5: 3,
-	6: 4,
-	8: 5,
-	10: 6,
-	12: 7
+MAJOR_DEG = {
+	0: 1,
+	2: 2,
+	4: 3,
+	5: 4,
+	7: 5,
+	9: 6,
+	11: 7
 }
 
 DEG_DIFF = {
@@ -56,13 +56,15 @@ MU = 2
 
 D = 0.6
 
-def w_ins():
-	pass
+def w_ins(note_b):
+	return K1 * note_b.duration
 
 
-def w_del():
-	pass
+def w_del(note_a):
+	return K1 * note_a.duration
 
+def w_sub(note_a, note_b):
+	return w_interval(note_a, note_b) + K1 * w_len(note_a, note_b)
 
 def w_frag(): 
 	pass
@@ -72,12 +74,48 @@ def w_cons():
 	pass
 
 
-def w_interval():
-	pass
+def w_interval(note_a, note_b):
+	if note_a.rest or note_b.rest:
+		if note_a.rest and note_b.rest:
+			return DEG_DIFF[0]
+		return REST
+
+	# Given that we represent notes as modulo to tonic
+	if note_a.scale == major:
+		degree_a = MAJOR_DEG[note_a.value]
+		debree_b = MAJOR_DEG[note_b.value]
+	elif note_b.scale == minor:
+		degree_a = MINOR_DEG[note_a.value]
+		degree_b = MINOR_DEG[note_b.value]
+	else:
+		return TON[math.abs(note_a.value - note_b.value)]
+
+	return DEG_DIFF[math.abs(degree_a - degree_b)]
+	
 
 
-def w_len():
-	pass
+def w_len(note_a, note_b):
+	return math.abs(note_a.duration - note_b.duration)
+
+
+
+class Note:
+	__init__(self, value, rest, duration, scale):
+		self.value = value
+		self.rest = rest
+		self.duration = duration
+		self.scale = scale
+
+'''
+
+'''
+def midi2notes(midifile):
+#TODO: encode them as a difference from the tonic
+
+'''
+Notes are objects of : .value, .rest, .duration, .poly
+#TODO: we could possibly omit the poly and have .value and .duration be lists of max length like 3 or 4 max polyphony within track
+'''
 
 
 '''
@@ -94,17 +132,17 @@ def ms_distance(a, b):
 
 	distance_matrix = []
 
-	for i, _ in enumerate(a):
+	for i in range(len(a) + 1):
 		if i > 0:
 			distance_matrix.append([matrix[i-1] + w_del(a, i))
 		else:
 			distance_matrix.append([i])
 
-	for i, _ in enumerate(b):
+	for i  in range(len(b) + 1):
 		if i > 0:
-			distance_matrix[0][i] = [matrix[0][i-1] + w_ins(b, i)
+			distance_matrix[0].append([matrix[0][i-1] + w_ins(b, i))
 		else:
-			distance_matrix[0][i] = i
+			distance_matrix[0].append([i])
 
 	# Constants for dynamic programming
 	max_duration_a = 0;
@@ -132,6 +170,26 @@ def ms_distance(a, b):
     C = math.ceil(max_duration_b / min_duration_a)
 
     ## Filling the rest of matrix
+
+    for i, note_a in enumerate(a,0):
+    	for j, note_b in enumerate(b,0):
+    		#TODO: here, lets make it work with the value polyhony array, yeah -> make it ugly
+    		if a[i].value == b[j].value and a[i].rest == b[j].rest and a[i].duration == b[j].duration:
+    			distance_matrix[i+1][j+1] = distance_matrix[i][j]
+    		else:
+    			deletion = distance_matrix[i][j + 1] + w_del(note_a)
+    			insertion = distance_matrix[i + 1][j] + w_ins(note_b)
+    			substitution = distance_matrix[i][j] + w_sub(note_a, note_b)
+    			fragmentation = w_frag(distance_matrix, a, b, i + 1, j + 1, F)
+    			consolidation = w_cons(distance_matrix, a, b, i + 1, j + 1, C)
+
+    			distance_matrix[i+1][j+1] = min(deletion, insertion, substitution, fragmentation, consolidation)
+
+	#TODO: for further improvements, we could do a max rescaling here as they do in musicjson-toolbox
+    return distance_matrix[len(a)+1][len(b)+1]
+
+
+
 
 
 ## Determine by the name of folder, wheter to use major or minor degrees
