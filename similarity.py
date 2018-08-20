@@ -4,6 +4,7 @@
 # The baseline of it is inspired by freakimkaefig/musicjson-toolbox on github, 
 # adding a minor mode to it and rewriting it to python with some tweaks
 
+import instument_classes
 
 import math
 import midi
@@ -130,13 +131,13 @@ def w_interval(note_a, note_b):
 
 	# Given that we represent notes as modulo to tonic
 	if note_a.scale == major:
-		degree_a = MAJOR_DEG[note_a.value]
-		debree_b = MAJOR_DEG[note_b.value]
+		degree_a = MAJOR_DEG[note_a.pitch % 12]
+		debree_b = MAJOR_DEG[note_b.pitch % 12]
 	elif note_b.scale == minor:
-		degree_a = MINOR_DEG[note_a.value]
-		degree_b = MINOR_DEG[note_b.value]
+		degree_a = MINOR_DEG[(note_a.pitch + 9) % 12]
+		degree_b = MINOR_DEG[(note_b.pitch + 9) % 12]
 	else:
-		return TON[math.abs(note_a.value - note_b.value)]
+		return TON[math.abs(note_a.pitch - note_b.pitch)]
 
 	return DEG_DIFF[math.abs(degree_a - degree_b)]
 	
@@ -146,29 +147,38 @@ def w_len(note_a, note_b):
 	return math.abs(note_a - note_b)
 
 
-
 class Note:
-	__init__(self, value, rest, duration, scale):
-		self.value = value
+	__init__(self, pitch, rest, duration, scale):
+		self.pitch = pitch
 		self.rest = rest
 		self.duration = duration
 		self.scale = scale
 
 '''
+Scale should be determined just by being in a specified folder (by preprocessing transpose to C/A)
+'''
+def midi2notes(midifile, scale):
+
+	
+	pattern = midi.read_midifile(midifile)
+
+	remaining_time = [track[0].ticks for track in pattern]
+	position_in_track = [0 for track in pattern]
+	
+	#TODO: determine instrument classes
+
+
+	return # append all to one sequence or just update it to run in on more sequences
 
 '''
-def midi2notes(midifile):
-#TODO: encode them as a difference from the tonic
-
-'''
-Notes are objects of : .value, .rest, .duration, .poly
-#TODO: we could possibly omit the poly and have .value and .duration be lists of max length like 3 or 4 max polyphony within track
+Notes are objects of : .pitch, .rest, .duration, .poly
+#TODO: we could possibly omit the poly and have .pitch and .duration be lists of max length like 3 or 4 max polyphony within track
 '''
 
 
 '''
-:param a: A list of notes of (pitch, duration)
-:param b: A list of notes of (pitch, duration)
+:param a: A list of notes of (pitch, rest, duration)
+:param b: A list of notes of (pitch, rest, duration)
 :return: Calculated distance
 '''
 def ms_distance(a, b):
@@ -221,8 +231,8 @@ def ms_distance(a, b):
 
     for i, note_a in enumerate(a,0):
     	for j, note_b in enumerate(b,0):
-    		#TODO: here, lets make it work with the value polyhony array, yeah -> make it ugly
-    		if a[i].value == b[j].value and a[i].rest == b[j].rest and a[i].duration == b[j].duration:
+    		#TODO: here, lets make it work with the pitch polyhony array, yeah -> make it ugly
+    		if a[i].pitch == b[j].pitch and a[i].rest == b[j].rest and a[i].duration == b[j].duration:
     			distance_matrix[i+1][j+1] = distance_matrix[i][j]
     		else:
     			deletion = distance_matrix[i][j + 1] + w_del(note_a)
