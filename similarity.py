@@ -4,10 +4,11 @@
 # The baseline of it is inspired by freakimkaefig/musicjson-toolbox on github, 
 # adding a minor mode to it and rewriting it to python with some tweaks
 
-import instument_classes
+import instrument_classes
 
 import math
 import midi
+from enum import Enum
 
 # Constants from original paper:
 K1 = 0.348
@@ -147,25 +148,131 @@ def w_len(note_a, note_b):
 	return math.abs(note_a - note_b)
 
 
-class Note:
+class Note(Object):
 	__init__(self, pitch, rest, duration, scale):
 		self.pitch = pitch
 		self.rest = rest
 		self.duration = duration
 		self.scale = scale
 
+		# Indicates when to look for meter changes
+		self.meter_change = False
+
+class Meter_change(Enum):
+	TRUE
+	FALSE
+
 '''
 Scale should be determined just by being in a specified folder (by preprocessing transpose to C/A)
+That is major/minor/atonal
+Returns: 
+	tracks of notes(pitch, rest, duration, scale) and meter change events for each channel,
+ 	instruments for each channel,
+	list of meters (change times are encoded in tracks (first returned value))
 '''
 def midi2notes(midifile, scale):
 
-	
+	# these dict of list of dicts that is:
+	# dict for each channel, list for each event, dict for {pitch; rest, duration}
+	note_ons = dict()
+	rests = dict()
+	tracks = dict()
+
+	instruments = dict()
+	meter = []
+
 	pattern = midi.read_midifile(midifile)
 
 	remaining_time = [track[0].ticks for track in pattern]
 	position_in_track = [0 for track in pattern]
 	
-	#TODO: determine instrument classes
+	while not (all(t is None for t in remaining_time)):
+		
+		# new sixteenth step
+		if currTime % (pattern.resolution / 4) == (pattern.resolution / 8):
+
+			for track_note_ons in note_ons:
+				
+				# Add rest if no held notes found
+				if len(note_ons[track_note_ons]) == 0:
+					note_ons[track_note_ons].append({"pitch":-1, "rest":True, "len":1})
+
+				# Prolong everything by 1 sixteenth
+				for notes in note_ons[track_note_ons]:
+					notes["len"] += 1
+				
+
+
+		for i in range(len(remaining_time)):
+
+			while remaining_time[i] == 0:
+
+				track = pattern[i]
+				pos = position_in_track[i]
+
+				event = track[pos]
+
+				if isinstance(event, midi.ProgramChangeEvent):
+					if i not in tracks:
+						# tracks hold pitch, rest, duration, scale for each note
+						tracks[i] = []
+						note_ons[i] = []
+						instruments[i] = instrument_classes.get_instrument_class(event.data[0])
+				
+				if isinstance(event, midi.TimeSignatureEvent):
+					meter.append(event.nominator + "/" + event.denominator)
+
+					for i in tracks:
+						tracks[i].append(Meter_Change.TRUE)
+				
+				if isinstance(event, midi.NoteEvent):
+
+					if isinstance(event, midi.NoteOffEvent) or event.velocity == 0:
+						for note in note_ons[i]:
+							if note["pitch"] == event.pitch:
+								new_note = Note(pitch=note["pitch"], rest=False, duration=note["len"], scale=scale)
+								tracks[i].append(new_note)
+								note_ons[i].remove(note)
+
+								if note in note_ons[i]:
+									print("DEBUG: Je hlaseno nebezpeci mili agenti 007")
+					else:
+						#TODO: detect ongoing notes for new polyphonies
+
+						# Delete rests
+						for rest in note_ons[i]:
+							if rest["rest"]:
+								new_note = Note(pitch=-1, rest=True, duration=rest["len"], scale=scale)
+								tracks[i].append(new_note)
+								note_ons[i].remove(rest)
+
+								if rest in note_ons[i]:
+									print("DEBUG: Je hlaseno nebezpeci mili agenti 007")
+
+						note_ons[i].append({"pitch":event.pitch, "rest":False, "len":0})
+				try:
+                    remainingTime[i] = track[pos + 1].tick
+                    positionInTrack[i] += 1
+                    
+                # a bit of a bad practice here, but it's not the main time consuming part of the program
+                except IndexError:
+                    remainingTime[i] = None
+
+            if remainingTime[i] is not None:
+                remainingTime[i] -= 1
+
+        if all(t is None for t in remainingTime):
+            break
+
+        currTime += 1
+
+	
+	return tracks, instruments, meter
+
+
+
+
+	get_instrument_class() 
 
 
 	return # append all to one sequence or just update it to run in on more sequences
@@ -213,7 +320,7 @@ def ms_distance(a, b):
             min_duration_b = note.duration
 
 
-    F = math.ceil(max_duration_a / min_duration_b)
+    F = int(math.ceil(max_duration_a / min_duration_b))
 
     max_duration_b = 0;
     min_duration_a = math.inf;
@@ -225,7 +332,7 @@ def ms_distance(a, b):
             min_duration_a = note.duration
 
 
-    C = math.ceil(max_duration_b / min_duration_a)
+    C = int(math.ceil(max_duration_b / min_duration_a))
 
     ## Filling the rest of matrix
 
