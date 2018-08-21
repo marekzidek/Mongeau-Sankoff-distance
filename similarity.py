@@ -131,9 +131,11 @@ def w_interval(note_a, note_b):
 		return REST
 
 	# Given that we represent notes as modulo to tonic
+	# TODO: FIX this bug with key not in dictionary and use TON table for it
 	if note_a.scale == "major":
 		degree_a = MAJOR_DEG[note_a.pitch % 12]
 		debree_b = MAJOR_DEG[note_b.pitch % 12]
+	# TODO: same bug here
 	elif note_b.scale == "minor":
 		degree_a = MINOR_DEG[(note_a.pitch - 9) % 12]
 		degree_b = MINOR_DEG[(note_b.pitch - 9) % 12]
